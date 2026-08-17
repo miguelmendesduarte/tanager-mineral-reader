@@ -1,7 +1,7 @@
 """Main module for the application."""
 
 
-def main():
+def main() -> None:
     """Entry point for the application."""
     print("Hello, World!")
 
