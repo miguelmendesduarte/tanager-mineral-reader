@@ -1,0 +1,32 @@
+"""Tests for application settings."""
+
+import pytest
+from pydantic import ValidationError
+
+from src.core.config import LogLevel, Settings, get_settings
+
+
+def test_settings_fall_back_to_defaults() -> None:
+    settings = Settings()
+
+    assert settings.log_level is LogLevel.INFO
+    assert "{message}" in settings.log_format
+
+
+def test_settings_read_log_level_from_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+
+    assert Settings().log_level is LogLevel.DEBUG
+
+
+def test_settings_reject_unknown_options() -> None:
+    with pytest.raises(ValidationError):
+        Settings(unknown_option="value")  # type: ignore[call-arg]
+
+
+def test_get_settings_is_cached() -> None:
+    get_settings.cache_clear()
+
+    assert get_settings() is get_settings()
