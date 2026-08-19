@@ -5,6 +5,7 @@ catch the whole family without reaching for bare `Exception`.
 """
 
 from collections.abc import Iterable
+from pathlib import Path
 
 
 class TanagerError(Exception):
@@ -42,3 +43,37 @@ class IncompleteDownloadError(DownloadError):
 
     def __init__(self, url: str, expected: int, received: int) -> None:
         super().__init__(url, f"Received {received} of {expected} bytes.")
+
+
+class CubeError(TanagerError):
+    """Base class for failures while reading a hyperspectral cube."""
+
+
+class UnknownCubeError(CubeError):
+    """Raised when a file holds no cube this project knows how to read."""
+
+    def __init__(self, path: Path, available: Iterable[str]) -> None:
+        options = ", ".join(sorted(available)) or "none"
+        super().__init__(f"{path} holds no known cube. Found: {options}.")
+
+
+class NoBandsInRangeError(CubeError):
+    """Raised when no usable band falls inside the requested wavelengths."""
+
+    def __init__(self, low: float, high: float) -> None:
+        super().__init__(f"No usable band between {low} nm and {high} nm.")
+
+
+class GridMetadataError(CubeError):
+    """Raised when the grid metadata does not describe the scene corners."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(f"The grid metadata has no {name} entry.")
+
+
+class LayerNotFoundError(CubeError):
+    """Raised when a file does not carry the requested per pixel layer."""
+
+    def __init__(self, name: str, available: Iterable[str]) -> None:
+        options = ", ".join(sorted(available)) or "none"
+        super().__init__(f"No layer named {name!r}. Available: {options}.")
