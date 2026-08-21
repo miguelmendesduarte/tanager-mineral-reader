@@ -30,12 +30,16 @@ def test_settings_build_the_item_url_from_the_scene_coordinates() -> None:
     settings = Settings(
         catalog_base_url="https://example.test/stac/",
         scene_collection="energy-mining",
-        scene_id="scene-1",
     )
 
-    assert settings.item_url == (
+    assert settings.item_url("scene-1") == (
         "https://example.test/stac/energy-mining/scene-1/scene-1.json"
     )
+
+
+def test_settings_reject_an_empty_scene_list() -> None:
+    with pytest.raises(ValidationError):
+        Settings(scene_ids=())
 
 
 def test_get_settings_is_cached() -> None:

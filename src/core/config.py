@@ -47,11 +47,16 @@ class Settings(BaseSettings):
         default="energy-mining",
         description="Collection the scene under study belongs to.",
     )
-    scene_id: str = Field(
-        default="20250305_053421_32_4001",
+    scene_ids: tuple[str, ...] = Field(
+        default=(
+            "20240925_185504_87_4001",
+            "20250222_190237_16_4001",
+        ),
+        min_length=1,
         description=(
-            "Scene under study: Singrauli coalfield, Madhya Pradesh, India, "
-            "acquired 2025-03-05."
+            "Scenes under study: Cuprite, Nevada, acquired 2024-09-25 and "
+            "2025-02-22. Two separate collects over the same ground, which is "
+            "what makes them worth comparing."
         ),
     )
 
@@ -82,15 +87,20 @@ class Settings(BaseSettings):
         description="Number of bytes held in memory while streaming a download.",
     )
 
-    @property
-    def item_url(self) -> str:
-        """URL of the STAC item describing the scene under study.
+    def item_url(self, scene_id: str) -> str:
+        """URL of the STAC item describing one scene.
 
         The catalog is a static tree, so an item is addressed by the collection
         it belongs to and its scene identifier.
+
+        Args:
+            scene_id: Identifier of the scene, e.g. `20250222_190237_16_4001`.
+
+        Returns:
+            str: URL of the item JSON.
         """
         root = self.catalog_base_url.rstrip("/")
-        return f"{root}/{self.scene_collection}/{self.scene_id}/{self.scene_id}.json"
+        return f"{root}/{self.scene_collection}/{scene_id}/{scene_id}.json"
 
 
 @lru_cache(maxsize=1)
