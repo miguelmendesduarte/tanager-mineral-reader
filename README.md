@@ -12,7 +12,7 @@ My submission...
 1. **Clone the repository** to your desired folder:
 
     ```bash
-    git clone git@github.com:miguelmendesduarte/tanager-mine-watch.git <desired-folder-name>
+    git clone git@github.com:miguelmendesduarte/tanager-mineral-reader.git <desired-folder-name>
     ```
 
 2. Navigate to the project folder:
