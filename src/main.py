@@ -14,10 +14,14 @@ app = typer.Typer(
     add_completion=False,
 )
 
-SCENE_ID_HELP = "Identifier of another scene in the configured collection."
+SCENE_ID_HELP = (
+    "Identifier of a scene in the configured collection; repeat the option to "
+    "download several. Defaults to the scenes configured in the settings."
+)
 ITEM_URL_HELP = (
     "Full URL of a STAC item, for scenes that live outside the configured "
-    "catalog and collection. Takes precedence over --scene-id."
+    "catalog and collection; repeat the option for several. Takes precedence "
+    "over --scene-id."
 )
 ASSET_HELP = (
     "Catalog key of an asset to download; repeat the option to select several. "
@@ -28,34 +32,41 @@ OVERWRITE_HELP = "Download assets again even if they are already present."
 
 @app.command()
 def download(
-    scene_id: Annotated[str | None, typer.Option(help=SCENE_ID_HELP)] = None,
-    item_url: Annotated[str | None, typer.Option(help=ITEM_URL_HELP)] = None,
+    scene_ids: Annotated[
+        list[str] | None,
+        typer.Option("--scene-id", "-s", help=SCENE_ID_HELP),
+    ] = None,
+    item_urls: Annotated[
+        list[str] | None,
+        typer.Option("--item-url", help=ITEM_URL_HELP),
+    ] = None,
     assets: Annotated[
         list[str] | None,
         typer.Option("--asset", "-a", help=ASSET_HELP),
     ] = None,
     overwrite: Annotated[bool, typer.Option(help=OVERWRITE_HELP)] = False,
 ) -> None:
-    """Download the assets of the scene under study."""
+    """Download the assets of the scenes under study."""
     settings = get_settings()
     configure_logging(settings)
 
-    if scene_id is not None:
-        settings = settings.model_copy(update={"scene_id": scene_id})
+    urls = item_urls or [
+        settings.item_url(scene_id) for scene_id in scene_ids or settings.scene_ids
+    ]
 
     with build_client(settings) as client:
-        item = fetch_item(item_url or settings.item_url, client=client)
-        paths = download_assets(
-            item,
-            assets or settings.default_assets,
-            destination_dir=settings.data_dir,
-            client=client,
-            chunk_size=settings.download_chunk_size,
-            overwrite=overwrite,
-        )
-
-    for name, path in paths.items():
-        logger.info("{} is available at {}", name, path)
+        for url in urls:
+            item = fetch_item(url, client=client)
+            paths = download_assets(
+                item,
+                assets or settings.default_assets,
+                destination_dir=settings.data_dir,
+                client=client,
+                chunk_size=settings.download_chunk_size,
+                overwrite=overwrite,
+            )
+            for name, path in paths.items():
+                logger.info("{} is available at {}", name, path)
 
 
 if __name__ == "__main__":

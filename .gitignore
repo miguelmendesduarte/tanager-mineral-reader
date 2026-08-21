@@ -221,3 +221,6 @@ __marimo__/
 
 # Downloaded imagery
 data/
+
+# Working notes: survey, plan, decisions. Not part of the submission.
+docs/
