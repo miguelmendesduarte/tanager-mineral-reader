@@ -1,5 +1,6 @@
 """Reference spectra from the USGS Spectral Library Version 7."""
 
+from .continuum import deepest_feature, remove
 from .resample import blunter_bands, convolve
 from .splib07 import Spectrum, archive_size, fetch_archive, read_spectra, read_spectrum
 
@@ -8,7 +9,9 @@ __all__ = [
     "archive_size",
     "blunter_bands",
     "convolve",
+    "deepest_feature",
     "fetch_archive",
     "read_spectra",
     "read_spectrum",
+    "remove",
 ]

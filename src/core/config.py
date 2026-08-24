@@ -120,9 +120,10 @@ class Settings(BaseSettings):
     match_range: tuple[float, float] = Field(
         default=(2080.0, 2400.0),
         description=(
-            "Wavelengths the minerals are told apart in, in nanometres. Stops "
-            "short of 2500 nm because the detector rolls off at its own edge, "
-            "which would otherwise look like the deepest feature present."
+            "Wavelengths the minerals are told apart in, in nanometres. This "
+            "is where their Al-OH, Mg-OH and carbonate absorptions fall, and "
+            "keeping it tight keeps the continuum local to the features being "
+            "compared."
         ),
     )
 
