@@ -170,6 +170,46 @@ class GridMetadataError(CubeError):
         super().__init__(f"The grid metadata has no {name} entry.")
 
 
+class GridsNotAlignedError(CubeError):
+    """Raised when two scenes do not fall on the same grid of pixels.
+
+    Resampling one onto the other is deliberately not implemented, so this is
+    a refusal rather than a fallback.
+    """
+
+    def __init__(self, detail: str) -> None:
+        super().__init__(
+            f"These scenes cannot be compared pixel to pixel: {detail}. "
+            "Resampling one onto the other is not implemented."
+        )
+
+
+class DifferentProjectionsError(GridsNotAlignedError):
+    """Raised when two scenes are projected differently."""
+
+    def __init__(self, epsg: int, other: int) -> None:
+        super().__init__(f"EPSG {epsg} against EPSG {other}")
+
+
+class DifferentPixelSizesError(GridsNotAlignedError):
+    """Raised when two scenes have pixels of different sizes."""
+
+    def __init__(self, size: tuple[float, float], other: tuple[float, float]) -> None:
+        super().__init__(
+            f"pixels of {size[0]}x{size[1]} m against {other[0]}x{other[1]} m"
+        )
+
+
+class OffLatticeError(GridsNotAlignedError):
+    """Raised when two scenes are offset by a fraction of a pixel."""
+
+    def __init__(self, rows: float, columns: float) -> None:
+        super().__init__(
+            f"origins {rows:.2f} rows and {columns:.2f} columns apart, which "
+            "is not a whole number of pixels"
+        )
+
+
 class LayerNotFoundError(CubeError):
     """Raised when a file does not carry the requested per pixel layer."""
 
