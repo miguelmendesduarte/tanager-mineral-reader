@@ -74,6 +74,17 @@ class UnknownInstrumentError(SpectraError):
         )
 
 
+class LibraryTooCoarseError(SpectraError):
+    """Raised when a library spectrum cannot be averaged onto a sensor's bands."""
+
+    def __init__(self, name: str, spacing: float, width: float) -> None:
+        super().__init__(
+            f"{name!r} is sampled every {spacing:.1f} nm, wider than the "
+            f"narrowest band it would be averaged onto ({width:.1f} nm). "
+            "Averaging it would be an interpolation."
+        )
+
+
 class SpectrumLengthError(SpectraError):
     """Raised when a spectrum and its wavelength grid disagree in length."""
 

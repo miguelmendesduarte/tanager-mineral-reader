@@ -11,6 +11,7 @@ instrument, in the same order — and a deleted point is written as -1.23e34.
 
 import re
 import zipfile
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -75,6 +76,9 @@ class Spectrum:
 def read_spectrum(archive: Path, name: str) -> Spectrum:
     """Read one mineral spectrum out of the archive.
 
+    Reading several is much cheaper through `read_spectra`, which opens the
+    archive once rather than once per spectrum.
+
     Args:
         archive: Path to `usgs_splib07.zip`.
         name: File stem without the `splib07b_` prefix or the extension, e.g.
@@ -88,30 +92,77 @@ def read_spectrum(archive: Path, name: str) -> Spectrum:
         UnknownInstrumentError: If its instrument has no wavelength grid here.
         SpectrumLengthError: If it disagrees in length with that grid.
     """
+    return read_spectra(archive, [name])[0]
+
+
+def read_spectra(archive: Path, names: Iterable[str]) -> list[Spectrum]:
+    """Read several mineral spectra out of the archive in one pass.
+
+    The archive holds 178,818 members, so its index takes over a second to
+    read. Opening it once for the whole batch, and reading each instrument's
+    wavelength grid only the first time it is needed, turns a second per
+    spectrum into a second overall.
+
+    Args:
+        archive: Path to `usgs_splib07.zip`.
+        names: File stems, as for `read_spectrum`.
+
+    Returns:
+        list[Spectrum]: One spectrum per name, in the order given.
+
+    Raises:
+        SpectrumNotFoundError: If the archive holds no such spectrum.
+        UnknownInstrumentError: If an instrument has no wavelength grid here.
+        SpectrumLengthError: If a spectrum disagrees in length with its grid.
+    """
+    grids: dict[str, tuple[NDArray[np.float64], NDArray[np.float64]]] = {}
+    spectra = []
+
     with zipfile.ZipFile(archive) as library:
-        member = f"{MINERALS}/splib07b_{name}.txt"
-        try:
-            reflectance = _column(library, member)
-        except KeyError:
-            raise SpectrumNotFoundError(name, archive) from None
+        for name in names:
+            try:
+                reflectance = _column(library, f"{MINERALS}/splib07b_{name}.txt")
+            except KeyError:
+                raise SpectrumNotFoundError(name, archive) from None
 
-        instrument = _instrument(name)
-        grid = WAVELENGTH_GRIDS.get(instrument, instrument)
-        if grid not in WAVELENGTH_FILES or instrument not in BANDPASS_FILES:
-            raise UnknownInstrumentError(name, instrument, BANDPASS_FILES)
+            instrument = _instrument(name)
+            if instrument not in grids:
+                grids[instrument] = _grid(library, name, instrument)
+            wavelengths, widths = grids[instrument]
 
-        wavelengths = _column(library, WAVELENGTH_FILES[grid]) * MICRONS_TO_NM
-        widths = _column(library, BANDPASS_FILES[instrument]) * MICRONS_TO_NM
+            if reflectance.size != wavelengths.size:
+                raise SpectrumLengthError(name, reflectance.size, wavelengths.size)
 
-    if reflectance.size != wavelengths.size:
-        raise SpectrumLengthError(name, reflectance.size, wavelengths.size)
+            spectra.append(
+                Spectrum(
+                    name=name,
+                    instrument=instrument,
+                    wavelengths=wavelengths,
+                    reflectance=reflectance,
+                    widths=widths,
+                )
+            )
 
-    return Spectrum(
-        name=name,
-        instrument=instrument,
-        wavelengths=wavelengths,
-        reflectance=reflectance,
-        widths=widths,
+    return spectra
+
+
+def _grid(
+    library: zipfile.ZipFile,
+    name: str,
+    instrument: str,
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """Wavelengths and channel widths of the instrument a spectrum was taken on.
+
+    Raises:
+        UnknownInstrumentError: If the instrument has no wavelength grid here.
+    """
+    grid = WAVELENGTH_GRIDS.get(instrument, instrument)
+    if grid not in WAVELENGTH_FILES or instrument not in BANDPASS_FILES:
+        raise UnknownInstrumentError(name, instrument, BANDPASS_FILES)
+
+    return (
+        _column(library, WAVELENGTH_FILES[grid]) * MICRONS_TO_NM,
+        _column(library, BANDPASS_FILES[instrument]) * MICRONS_TO_NM,
     )
 
 
