@@ -6,7 +6,7 @@ from numpy.typing import NDArray
 
 from src.core.exceptions import LibraryTooCoarseError
 from src.readers.wavelengths import Wavelengths
-from src.spectra.resample import FWHM_TO_SIGMA, blunter_bands, convolve
+from src.spectra.resample import FWHM_TO_SIGMA, convolve, extra_blur
 from src.spectra.splib07 import Spectrum
 
 
@@ -107,7 +107,7 @@ def test_a_thinly_sampled_library_is_refused() -> None:
         convolve(spectrum, _bands([2200.0], width=6.0))
 
 
-def test_blunter_bands_counts_only_inside_the_range_that_matters() -> None:
+def test_extra_blur_is_measured_only_inside_the_range_that_matters() -> None:
     """The library is blunt in the visible and sharp in the shortwave here."""
     grid = np.arange(400.0, 2400.0, 1.0)
     widths = np.where(grid < 1000.0, 9.0, 5.0)
@@ -120,5 +120,6 @@ def test_blunter_bands_counts_only_inside_the_range_that_matters() -> None:
     )
     bands = _bands([500.0, 600.0, 2200.0, 2300.0], width=6.0)
 
-    assert blunter_bands(spectrum, bands, 2100.0, 2400.0) == (0, 2)
-    assert blunter_bands(spectrum, bands, 400.0, 2400.0) == (2, 4)
+    assert extra_blur(spectrum, bands, 2100.0, 2400.0) == pytest.approx(-1.0)
+    assert extra_blur(spectrum, bands, 400.0, 2400.0) == pytest.approx(3.0)
+    assert np.isnan(extra_blur(spectrum, bands, 3000.0, 3100.0))

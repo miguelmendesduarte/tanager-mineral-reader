@@ -4,8 +4,16 @@ from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from .exceptions import (
+    AssetNotDownloadedError,
+    EmptyMatchRangeError,
+    EmptyMineralGroupError,
+    NoMineralGroupsError,
+    RepeatedSpeciesError,
+)
 
 
 class LogLevel(StrEnum):
@@ -89,6 +97,39 @@ class Settings(BaseSettings):
         description="Name of the archive within the catalog record.",
     )
 
+    # Minerals
+    mineral_groups: dict[str, tuple[str, ...]] = Field(
+        default={
+            "alunite": ("Alunite_HS295.3B_ASDNGa_AREF",),
+            "kaolinite_group": (
+                "Kaolinite_KGa-1_(wxl)_ASDNGb_AREF",
+                "Dickite_NMNH106242_ASDNGb_AREF",
+                "Halloysite_NMNH106237_ASDNGa_AREF",
+            ),
+            "muscovite": ("Muscovite_GDS113_Ruby_ASDNGa_AREF",),
+            "montmorillonite": ("Montmorillonite_SWy-1_ASDNGb_AREF",),
+            "pyrophyllite": ("Pyrophyllite_PYS1A_lt850um_ASDNGa_AREF",),
+            "carbonate": ("Calcite_WS272_ASDNGa_AREF",),
+        },
+        description=(
+            "Reference spectra to match pixels against, under the group each "
+            "is reported as. A species appears exactly once, so the groups are "
+            "the whole mineral list. These are the alteration minerals at "
+            "Cuprite; the kaolin minerals share a group because their spectra "
+            "are too alike to tell apart at 30 m."
+        ),
+    )
+    match_range: tuple[float, float] = Field(
+        default=(2080.0, 2490.0),
+        description=(
+            "Wavelengths the minerals are told apart in, in nanometres. Wide "
+            "enough to hold the secondary absorptions near 2430 nm, which "
+            "separate alunite from the kaolin minerals far better than their "
+            "primary features alone, and stopping short of the last few bands "
+            "where the detector is noisiest."
+        ),
+    )
+
     # Downloads
     request_timeout: float = Field(
         default=60.0,
@@ -101,10 +142,93 @@ class Settings(BaseSettings):
         description="Number of bytes held in memory while streaming a download.",
     )
 
+    @field_validator("mineral_groups")
+    @classmethod
+    def _reject_empty_or_repeated(
+        cls,
+        groups: dict[str, tuple[str, ...]],
+    ) -> dict[str, tuple[str, ...]]:
+        """Keep the groups a single source of truth for the mineral list.
+
+        A species under two groups would have no one answer to what it is
+        reported as, and an empty group would name a class no pixel can take.
+        """
+        if not groups:
+            raise NoMineralGroupsError
+
+        seen: set[str] = set()
+        for group, species in groups.items():
+            if not species:
+                raise EmptyMineralGroupError(group)
+            repeated = seen & set(species)
+            if repeated:
+                raise RepeatedSpeciesError(repeated)
+            seen |= set(species)
+
+        return groups
+
+    @field_validator("match_range")
+    @classmethod
+    def _reject_backwards_range(cls, value: tuple[float, float]) -> tuple[float, float]:
+        """Refuse a range that ends before it starts."""
+        low, high = value
+        if low >= high:
+            raise EmptyMatchRangeError(low, high)
+        return value
+
+    @property
+    def species(self) -> tuple[str, ...]:
+        """Every reference spectrum to match against, in group order."""
+        return tuple(name for names in self.mineral_groups.values() for name in names)
+
+    def group_of(self, name: str) -> str:
+        """The group a reference spectrum is reported as.
+
+        Args:
+            name: Name of the reference spectrum.
+
+        Returns:
+            str: Name of its group.
+
+        Raises:
+            KeyError: If no group holds that spectrum.
+        """
+        for group, names in self.mineral_groups.items():
+            if name in names:
+                return group
+        raise KeyError(name)
+
     @property
     def splib07_dir(self) -> Path:
         """Directory the spectral library is downloaded to and unpacked in."""
         return self.data_dir / "splib07"
+
+    @property
+    def splib07_archive(self) -> Path:
+        """Local path of the spectral library archive."""
+        return self.splib07_dir / self.splib07_archive_name
+
+    def scene_asset(self, scene_id: str, asset: str) -> Path:
+        """Local path of an asset already downloaded for a scene.
+
+        The extension varies by asset, so the file is looked up by name rather
+        than assumed.
+
+        Args:
+            scene_id: Identifier of the scene.
+            asset: Catalog key of the asset, e.g. `ortho_sr_hdf5`.
+
+        Returns:
+            Path: Location of the downloaded file.
+
+        Raises:
+            AssetNotDownloadedError: If no such file is present.
+        """
+        directory = self.data_dir / scene_id
+        found = sorted(directory.glob(f"*_{asset}.*")) if directory.is_dir() else []
+        if not found:
+            raise AssetNotDownloadedError(scene_id, asset, directory)
+        return found[0]
 
     @property
     def splib07_item_url(self) -> str:
