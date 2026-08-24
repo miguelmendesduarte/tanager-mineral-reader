@@ -3,7 +3,12 @@
 import re
 from dataclasses import dataclass
 
-from ..core.exceptions import GridMetadataError
+from ..core.exceptions import (
+    DifferentPixelSizesError,
+    DifferentProjectionsError,
+    GridMetadataError,
+    OffLatticeError,
+)
 
 UPPER_LEFT = "UpperLeftPointMtrs"
 LOWER_RIGHT = "LowerRightMtrs"
@@ -75,6 +80,40 @@ class Grid:
         right, bottom = self.lower_right
         return left, bottom, right, top
 
+    def offset_to(self, other: "Grid") -> tuple[int, int]:
+        """Where another grid's first pixel sits inside this one.
+
+        Two scenes can only be compared pixel to pixel if they fall on the same
+        lattice: same projection, same pixel size, and origins a whole number of
+        pixels apart. When they do, comparing them is a matter of taking a
+        window out of the larger one, and no resampling is involved at all.
+
+        Args:
+            other: Grid to locate inside this one.
+
+        Returns:
+            tuple[int, int]: Row and column of this grid at which the other
+                grid begins. Either may be negative if it starts outside.
+
+        Raises:
+            GridsNotAlignedError: If the two grids do not share a lattice.
+                Resampling one onto the other is deliberately not implemented,
+                so this is a refusal rather than a fallback.
+        """
+        if self.epsg != other.epsg:
+            raise DifferentProjectionsError(self.epsg, other.epsg)
+
+        if self.pixel_size != other.pixel_size:
+            raise DifferentPixelSizesError(self.pixel_size, other.pixel_size)
+
+        width, height = self.pixel_size
+        columns = (other.upper_left[0] - self.upper_left[0]) / width
+        rows = (self.upper_left[1] - other.upper_left[1]) / height
+        if not (_is_whole(rows) and _is_whole(columns)):
+            raise OffLatticeError(rows, columns)
+
+        return round(rows), round(columns)
+
 
 def _corner(metadata: str, name: str) -> tuple[float, float]:
     """Read one corner of the grid from the structure metadata."""
@@ -82,3 +121,8 @@ def _corner(metadata: str, name: str) -> tuple[float, float]:
     if match is None:
         raise GridMetadataError(name)
     return float(match.group(1)), float(match.group(2))
+
+
+def _is_whole(value: float, tolerance: float = 1e-6) -> bool:
+    """Whether a number of pixels is whole, allowing for floating point."""
+    return abs(value - round(value)) <= tolerance
