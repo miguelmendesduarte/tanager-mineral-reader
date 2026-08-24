@@ -6,7 +6,15 @@ from pathlib import Path
 import httpx
 import pytest
 
-from src.catalog.download import download_asset, download_assets
+from src.catalog.download import (
+    BYTES_PER_GB,
+    BYTES_PER_KB,
+    BYTES_PER_MB,
+    _human_readable,
+    _progress,
+    download_asset,
+    download_assets,
+)
 from src.catalog.models import Asset, Item
 from src.core.exceptions import DownloadError, IncompleteDownloadError
 
@@ -240,3 +248,28 @@ def test_download_assets_groups_the_files_by_scene(tmp_path: Path) -> None:
         "thumbnail": tmp_path / "scene-1" / "thumb.png",
     }
     assert all(path.read_bytes() == CONTENT for path in paths.values())
+
+
+def test_human_readable_picks_the_largest_unit() -> None:
+    assert _human_readable(512) == "512 B"
+    assert _human_readable(2 * BYTES_PER_KB) == "2.0 KB"
+    assert _human_readable(3 * BYTES_PER_MB) == "3.0 MB"
+    assert _human_readable(5 * BYTES_PER_GB) == "5.0 GB"
+
+
+def test_progress_counts_towards_an_announced_size() -> None:
+    line = _progress(BYTES_PER_GB, 4 * BYTES_PER_GB, 10 * BYTES_PER_MB)
+
+    assert "1.0 GB of 4.0 GB (25%)" in line
+    assert "10.0 MB/s" in line
+    assert "5m07s left" in line
+
+
+def test_progress_reports_only_what_arrived_without_an_announced_size() -> None:
+    line = _progress(2 * BYTES_PER_MB, None, BYTES_PER_MB)
+
+    assert line == "2.0 MB written, 1.0 MB/s"
+
+
+def test_progress_survives_a_stalled_download() -> None:
+    assert "unknown left" in _progress(BYTES_PER_MB, 2 * BYTES_PER_MB, 0.0)

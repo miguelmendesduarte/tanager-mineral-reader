@@ -45,6 +45,55 @@ class IncompleteDownloadError(DownloadError):
         super().__init__(url, f"Received {received} of {expected} bytes.")
 
 
+class SpectraError(TanagerError):
+    """Base class for failures while working with reference spectra."""
+
+
+class ArchiveSizeError(SpectraError):
+    """Raised when the catalog record does not give the size of an archive."""
+
+    def __init__(self, url: str, name: str) -> None:
+        super().__init__(f"The record at {url} carries no size for {name!r}.")
+
+
+class SpectrumNotFoundError(SpectraError):
+    """Raised when the archive holds no spectrum under that name."""
+
+    def __init__(self, name: str, archive: Path) -> None:
+        super().__init__(f"{archive} holds no spectrum named {name!r}.")
+
+
+class UnknownInstrumentError(SpectraError):
+    """Raised when a spectrum was recorded on an instrument we cannot place."""
+
+    def __init__(self, name: str, code: str, known: Iterable[str]) -> None:
+        options = ", ".join(sorted(known)) or "none"
+        super().__init__(
+            f"{name!r} was recorded on {code!r}, which has no wavelength grid "
+            f"here. Known instruments: {options}."
+        )
+
+
+class LibraryTooCoarseError(SpectraError):
+    """Raised when a library spectrum cannot be averaged onto a sensor's bands."""
+
+    def __init__(self, name: str, spacing: float, width: float) -> None:
+        super().__init__(
+            f"{name!r} is sampled every {spacing:.1f} nm, wider than the "
+            f"narrowest band it would be averaged onto ({width:.1f} nm). "
+            "Averaging it would be an interpolation."
+        )
+
+
+class SpectrumLengthError(SpectraError):
+    """Raised when a spectrum and its wavelength grid disagree in length."""
+
+    def __init__(self, name: str, values: int, wavelengths: int) -> None:
+        super().__init__(
+            f"{name!r} holds {values} values against {wavelengths} wavelengths."
+        )
+
+
 class CubeError(TanagerError):
     """Base class for failures while reading a hyperspectral cube."""
 

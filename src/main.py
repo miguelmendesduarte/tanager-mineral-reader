@@ -8,9 +8,10 @@ from loguru import logger
 from .catalog import build_client, download_assets, fetch_item
 from .core.config import get_settings
 from .core.logging import configure_logging
+from .spectra import archive_size, fetch_archive
 
 app = typer.Typer(
-    help="Work with Tanager scenes from Planet's open STAC catalog.",
+    help="Map surface mineralogy from Tanager hyperspectral imagery.",
     add_completion=False,
 )
 
@@ -28,6 +29,9 @@ ASSET_HELP = (
     "Defaults to the assets configured in the settings."
 )
 OVERWRITE_HELP = "Download assets again even if they are already present."
+LIBRARY_OVERWRITE_HELP = (
+    "Download the spectral library again even if it is already present."
+)
 
 
 @app.command()
@@ -67,6 +71,33 @@ def download(
             )
             for name, path in paths.items():
                 logger.info("{} is available at {}", name, path)
+
+
+@app.command()
+def library(
+    overwrite: Annotated[bool, typer.Option(help=LIBRARY_OVERWRITE_HELP)] = False,
+) -> None:
+    """Download the USGS spectral library the pixel spectra are matched against."""
+    settings = get_settings()
+    configure_logging(settings)
+
+    with build_client(settings) as client:
+        size = archive_size(
+            settings.splib07_item_url,
+            settings.splib07_archive_name,
+            client=client,
+        )
+        path = fetch_archive(
+            settings.splib07_url,
+            settings.splib07_dir,
+            archive_name=settings.splib07_archive_name,
+            client=client,
+            chunk_size=settings.download_chunk_size,
+            expected_size=size,
+            overwrite=overwrite,
+        )
+
+    logger.info("The spectral library is available at {}", path)
 
 
 if __name__ == "__main__":
