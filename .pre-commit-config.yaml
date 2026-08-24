@@ -42,6 +42,7 @@ repos:
         additional_dependencies:
           - pydantic
           - pydantic-settings
+          - httpx
 
   - repo: https://github.com/crate-ci/typos
     rev: v1.49.0
