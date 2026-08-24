@@ -4,8 +4,15 @@ from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from .exceptions import (
+    EmptyMatchRangeError,
+    EmptyMineralGroupError,
+    NoMineralGroupsError,
+    RepeatedSpeciesError,
+)
 
 
 class LogLevel(StrEnum):
@@ -89,6 +96,36 @@ class Settings(BaseSettings):
         description="Name of the archive within the catalog record.",
     )
 
+    # Minerals
+    mineral_groups: dict[str, tuple[str, ...]] = Field(
+        default={
+            "alunite": ("Alunite_HS295.3B_ASDNGa_AREF",),
+            "kaolinite_group": (
+                "Kaolinite_KGa-1_(wxl)_ASDNGb_AREF",
+                "Dickite_NMNH106242_ASDNGb_AREF",
+                "Halloysite_NMNH106237_ASDNGa_AREF",
+            ),
+            "muscovite": ("Muscovite_GDS113_Ruby_ASDNGa_AREF",),
+            "montmorillonite": ("Montmorillonite_SWy-1_ASDNGb_AREF",),
+            "pyrophyllite": ("Pyrophyllite_PYS1A_lt850um_ASDNGa_AREF",),
+            "carbonate": ("Calcite_WS272_ASDNGa_AREF",),
+        },
+        description=(
+            "Reference spectra to match pixels against, under the group each "
+            "is reported as. A species appears exactly once, so the groups are "
+            "the whole mineral list. Which minerals these are, and why, is "
+            "recorded in docs/decisions.md 018 and 019."
+        ),
+    )
+    match_range: tuple[float, float] = Field(
+        default=(2080.0, 2400.0),
+        description=(
+            "Wavelengths the minerals are told apart in, in nanometres. Stops "
+            "short of 2500 nm because the detector rolls off at its own edge, "
+            "which would otherwise look like the deepest feature present."
+        ),
+    )
+
     # Downloads
     request_timeout: float = Field(
         default=60.0,
@@ -100,6 +137,62 @@ class Settings(BaseSettings):
         gt=0,
         description="Number of bytes held in memory while streaming a download.",
     )
+
+    @field_validator("mineral_groups")
+    @classmethod
+    def _reject_empty_or_repeated(
+        cls,
+        groups: dict[str, tuple[str, ...]],
+    ) -> dict[str, tuple[str, ...]]:
+        """Keep the groups a single source of truth for the mineral list.
+
+        A species under two groups would have no one answer to what it is
+        reported as, and an empty group would name a class no pixel can take.
+        """
+        if not groups:
+            raise NoMineralGroupsError
+
+        seen: set[str] = set()
+        for group, species in groups.items():
+            if not species:
+                raise EmptyMineralGroupError(group)
+            repeated = seen & set(species)
+            if repeated:
+                raise RepeatedSpeciesError(repeated)
+            seen |= set(species)
+
+        return groups
+
+    @field_validator("match_range")
+    @classmethod
+    def _reject_backwards_range(cls, value: tuple[float, float]) -> tuple[float, float]:
+        """Refuse a range that ends before it starts."""
+        low, high = value
+        if low >= high:
+            raise EmptyMatchRangeError(low, high)
+        return value
+
+    @property
+    def species(self) -> tuple[str, ...]:
+        """Every reference spectrum to match against, in group order."""
+        return tuple(name for names in self.mineral_groups.values() for name in names)
+
+    def group_of(self, name: str) -> str:
+        """The group a reference spectrum is reported as.
+
+        Args:
+            name: Name of the reference spectrum.
+
+        Returns:
+            str: Name of its group.
+
+        Raises:
+            KeyError: If no group holds that spectrum.
+        """
+        for group, names in self.mineral_groups.items():
+            if name in names:
+                return group
+        raise KeyError(name)
 
     @property
     def splib07_dir(self) -> Path:

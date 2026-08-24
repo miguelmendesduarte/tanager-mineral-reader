@@ -12,6 +12,46 @@ class TanagerError(Exception):
     """Base class for every error raised by this project."""
 
 
+class ConfigError(TanagerError, ValueError):
+    """Base class for settings that cannot be used as given.
+
+    Also a `ValueError` so that pydantic reports these as validation failures
+    against the setting they came from, rather than as a crash.
+    """
+
+
+class NoMineralGroupsError(ConfigError):
+    """Raised when no mineral group is configured to match against."""
+
+    def __init__(self) -> None:
+        super().__init__("At least one mineral group is needed.")
+
+
+class EmptyMineralGroupError(ConfigError):
+    """Raised when a mineral group names no reference spectra."""
+
+    def __init__(self, group: str) -> None:
+        super().__init__(f"Mineral group {group!r} names no species.")
+
+
+class RepeatedSpeciesError(ConfigError):
+    """Raised when a reference spectrum is filed under more than one group."""
+
+    def __init__(self, names: Iterable[str]) -> None:
+        listed = ", ".join(sorted(names))
+        super().__init__(
+            f"{listed} appears in more than one mineral group, so there is no "
+            "single answer to what it is reported as."
+        )
+
+
+class EmptyMatchRangeError(ConfigError):
+    """Raised when the wavelength range to match in ends before it starts."""
+
+    def __init__(self, low: float, high: float) -> None:
+        super().__init__(f"The match range {low} to {high} nm holds no wavelengths.")
+
+
 class CatalogError(TanagerError):
     """Base class for failures while reading from the STAC catalog."""
 
