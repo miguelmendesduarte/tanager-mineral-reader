@@ -20,6 +20,16 @@ class ConfigError(TanagerError, ValueError):
     """
 
 
+class AssetNotDownloadedError(ConfigError):
+    """Raised when an asset a command needs has not been downloaded yet."""
+
+    def __init__(self, scene_id: str, asset: str, directory: Path) -> None:
+        super().__init__(
+            f"No {asset!r} for scene {scene_id} under {directory}. "
+            f"Run `download --scene-id {scene_id} --asset {asset}` first."
+        )
+
+
 class NoMineralGroupsError(ConfigError):
     """Raised when no mineral group is configured to match against."""
 

@@ -75,23 +75,23 @@ def _reject_thin_sampling(spectrum: Spectrum, target: Wavelengths) -> None:
         raise LibraryTooCoarseError(spectrum.name, spacing, narrowest)
 
 
-def blunter_bands(
+def extra_blur(
     spectrum: Spectrum,
     target: Wavelengths,
     low: float,
     high: float,
-) -> tuple[int, int]:
-    """Count the bands a library spectrum is too blunt to model sharply.
+) -> float:
+    """How much blunter than the bands a library spectrum is, at its worst.
 
-    Not an error: those bands are usable, but come out smoother than a real
-    measurement of the mineral would be, which shallows absorption depths
-    without moving them.
+    Not an error unless it is large: a slightly blunter reference comes out
+    smoother than a real measurement of the mineral would be, which shallows
+    absorption depths a little without moving them.
 
     Both instruments vary in width across their range, so the comparison is
-    band by band at matching wavelengths, and over a stated range. Comparing
-    the widest channel of one against the narrowest band of the other reports
-    a mismatch between two unrelated parts of the spectrum, and a mismatch
-    outside the range being matched says nothing about the result.
+    band by band at matching wavelengths, and only over the range being
+    matched in. Comparing the widest channel of one against the narrowest band
+    of the other reports a mismatch between two unrelated parts of the
+    spectrum, and a mismatch outside the matched range says nothing at all.
 
     Args:
         spectrum: Library spectrum, on its own instrument's grid.
@@ -100,9 +100,14 @@ def blunter_bands(
         high: Upper bound of the range that matters, in nanometres.
 
     Returns:
-        tuple[int, int]: How many bands in the range the library is blunter
-            than, and how many bands the range holds.
+        float: The largest amount, in nanometres, by which the library is
+            wider than the band it lands on. Zero or negative when the library
+            is at least as sharp as every band in the range, and NaN when the
+            range holds no bands.
     """
     inside = (target.centres >= low) & (target.centres <= high)
+    if not inside.any():
+        return float("nan")
+
     library_widths = np.interp(target.centres, spectrum.wavelengths, spectrum.widths)
-    return int((inside & (library_widths > target.widths)).sum()), int(inside.sum())
+    return float(np.max(library_widths[inside] - target.widths[inside]))

@@ -8,6 +8,7 @@ from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .exceptions import (
+    AssetNotDownloadedError,
     EmptyMatchRangeError,
     EmptyMineralGroupError,
     NoMineralGroupsError,
@@ -199,6 +200,33 @@ class Settings(BaseSettings):
     def splib07_dir(self) -> Path:
         """Directory the spectral library is downloaded to and unpacked in."""
         return self.data_dir / "splib07"
+
+    @property
+    def splib07_archive(self) -> Path:
+        """Local path of the spectral library archive."""
+        return self.splib07_dir / self.splib07_archive_name
+
+    def scene_asset(self, scene_id: str, asset: str) -> Path:
+        """Local path of an asset already downloaded for a scene.
+
+        The extension varies by asset, so the file is looked up by name rather
+        than assumed.
+
+        Args:
+            scene_id: Identifier of the scene.
+            asset: Catalog key of the asset, e.g. `ortho_sr_hdf5`.
+
+        Returns:
+            Path: Location of the downloaded file.
+
+        Raises:
+            AssetNotDownloadedError: If no such file is present.
+        """
+        directory = self.data_dir / scene_id
+        found = sorted(directory.glob(f"*_{asset}.*")) if directory.is_dir() else []
+        if not found:
+            raise AssetNotDownloadedError(scene_id, asset, directory)
+        return found[0]
 
     @property
     def splib07_item_url(self) -> str:
