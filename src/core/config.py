@@ -114,8 +114,9 @@ class Settings(BaseSettings):
         description=(
             "Reference spectra to match pixels against, under the group each "
             "is reported as. A species appears exactly once, so the groups are "
-            "the whole mineral list. Which minerals these are, and why, is "
-            "recorded in docs/decisions.md 018 and 019."
+            "the whole mineral list. These are the alteration minerals at "
+            "Cuprite; the kaolin minerals share a group because their spectra "
+            "are too alike to tell apart at 30 m."
         ),
     )
     match_range: tuple[float, float] = Field(
