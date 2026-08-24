@@ -70,6 +70,8 @@ def download_asset(
     client: httpx.Client,
     chunk_size: int,
     overwrite: bool = False,
+    filename: str | None = None,
+    expected_size: int | None = None,
 ) -> Path:
     """Download a single asset, resuming a previous attempt when possible.
 
@@ -79,6 +81,10 @@ def download_asset(
         client: HTTP client used for the request.
         chunk_size: Number of bytes held in memory at a time.
         overwrite: Download again even if the file is already present.
+        filename: Name to save the file under. Defaults to the name the catalog
+            publishes, which only works for hrefs that carry it in their path.
+        expected_size: Size of the asset in bytes, for servers that announce
+            none of their own. Only consulted when the response is silent.
 
     Returns:
         Path: Location of the downloaded file.
@@ -88,10 +94,11 @@ def download_asset(
             before the whole file has arrived.
     """
     destination_dir.mkdir(parents=True, exist_ok=True)
-    destination = destination_dir / asset.filename
+    name = filename or asset.filename
+    destination = destination_dir / name
 
     if destination.exists() and not overwrite:
-        logger.info("Skipping {}, already downloaded", asset.filename)
+        logger.info("Skipping {}, already downloaded", name)
         return destination
 
     partial = destination.with_name(destination.name + PARTIAL_SUFFIX)
@@ -99,13 +106,19 @@ def download_asset(
         partial.unlink(missing_ok=True)
 
     try:
-        _stream_to_file(asset.href, partial, client=client, chunk_size=chunk_size)
+        _stream_to_file(
+            asset.href,
+            partial,
+            client=client,
+            chunk_size=chunk_size,
+            expected_size=expected_size,
+        )
     except httpx.HTTPError as error:
         raise DownloadError(asset.href) from error
 
     partial.replace(destination)
     size = _human_readable(destination.stat().st_size)
-    logger.info("Downloaded {} ({})", asset.filename, size)
+    logger.info("Downloaded {} ({})", name, size)
     return destination
 
 
@@ -155,6 +168,7 @@ def _stream_to_file(
     *,
     client: httpx.Client,
     chunk_size: int,
+    expected_size: int | None = None,
 ) -> None:
     """Stream a URL into a file, resuming from it when it already holds bytes.
 
@@ -162,12 +176,24 @@ def _stream_to_file(
         IncompleteDownloadError: If the response ends early. The partial file is
             left in place so that the next attempt can resume from it.
     """
-    if _fetch_into(url, destination, client=client, chunk_size=chunk_size):
+    if _fetch_into(
+        url,
+        destination,
+        client=client,
+        chunk_size=chunk_size,
+        expected_size=expected_size,
+    ):
         return
 
     logger.warning("The partial file for {} is unusable, downloading it again", url)
     destination.unlink(missing_ok=True)
-    _fetch_into(url, destination, client=client, chunk_size=chunk_size)
+    _fetch_into(
+        url,
+        destination,
+        client=client,
+        chunk_size=chunk_size,
+        expected_size=expected_size,
+    )
 
 
 def _fetch_into(
@@ -176,6 +202,7 @@ def _fetch_into(
     *,
     client: httpx.Client,
     chunk_size: int,
+    expected_size: int | None = None,
 ) -> bool:
     """Write the response body to a file, appending when resuming.
 
@@ -202,7 +229,8 @@ def _fetch_into(
             logger.warning("Resume was refused, downloading {} from the start", url)
             downloaded = 0
 
-        expected = _announced_size(response, already_on_disk=downloaded)
+        announced = _announced_size(response, already_on_disk=downloaded)
+        expected = expected_size if announced is None else announced
 
         with destination.open("ab" if resuming else "wb") as handle:
             started_at = time.monotonic()
