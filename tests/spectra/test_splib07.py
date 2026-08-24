@@ -1,13 +1,21 @@
 """Tests for access to the USGS spectral library."""
 
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import httpx
+import numpy as np
 import pytest
 
-from src.core.exceptions import ArchiveSizeError
-from src.spectra.splib07 import archive_size
+from src.core.exceptions import (
+    ArchiveSizeError,
+    SpectrumLengthError,
+    SpectrumNotFoundError,
+    UnknownInstrumentError,
+)
+from src.spectra.splib07 import archive_size, read_spectrum
+from tests.spectra.conftest import write_archive
 
 URL = "https://example.test/item/abc?format=json"
 ARCHIVE = "usgs_splib07.zip"
@@ -71,3 +79,71 @@ def test_archive_size_rejects_a_record_that_is_not_a_catalog_record() -> None:
         pytest.raises(ArchiveSizeError),
     ):
         archive_size(URL, ARCHIVE, client=client)
+
+
+def test_read_spectrum_returns_wavelengths_in_nanometres(archive: Path) -> None:
+    spectrum = read_spectrum(archive, "Calcite_TEST1_ASDNGa_AREF")
+
+    assert spectrum.wavelengths.tolist() == [2000.0, 2100.0, 2200.0, 2300.0]
+
+
+def test_read_spectrum_turns_deleted_points_into_nan(archive: Path) -> None:
+    spectrum = read_spectrum(archive, "Calcite_TEST1_ASDNGa_AREF")
+
+    assert np.isnan(spectrum.reflectance[1])
+    assert spectrum.reflectance[0] == pytest.approx(0.8)
+    assert spectrum.reflectance[3] == pytest.approx(0.75)
+
+
+def test_read_spectrum_reads_the_channel_widths_of_its_instrument(
+    archive: Path,
+) -> None:
+    spectrum = read_spectrum(archive, "Calcite_TEST1_ASDNGa_AREF")
+
+    assert spectrum.instrument == "ASDNG"
+    assert spectrum.widths.tolist() == [5.6, 5.6, 5.6, 5.6]
+
+
+def test_read_spectrum_pairs_each_instrument_with_its_own_grid(
+    tmp_path: Path,
+) -> None:
+    """Beckman spectra are longer and blunter; they must not get the ASD grid."""
+    path = write_archive(
+        tmp_path / "library.zip",
+        {"Alunite_TEST2_BECKb_AREF": ["6.0000000e-001", "3.0000000e-001"]},
+    )
+
+    spectrum = read_spectrum(path, "Alunite_TEST2_BECKb_AREF")
+
+    assert spectrum.instrument == "BECK"
+    assert spectrum.wavelengths.tolist() == [2000.0, 2200.0]
+    assert spectrum.widths.tolist() == [10.0, 10.0]
+
+
+def test_read_spectrum_rejects_a_name_that_is_not_in_the_archive(
+    archive: Path,
+) -> None:
+    with pytest.raises(SpectrumNotFoundError):
+        read_spectrum(archive, "Alunite_NOPE_ASDNGa_AREF")
+
+
+def test_read_spectrum_rejects_an_instrument_with_no_grid(tmp_path: Path) -> None:
+    path = write_archive(
+        tmp_path / "library.zip",
+        {"Calcite_TEST1_NIC4bb_RREF": ["1.0000000e-001"]},
+    )
+
+    with pytest.raises(UnknownInstrumentError):
+        read_spectrum(path, "Calcite_TEST1_NIC4bb_RREF")
+
+
+def test_read_spectrum_rejects_a_spectrum_that_does_not_fit_its_grid(
+    tmp_path: Path,
+) -> None:
+    path = write_archive(
+        tmp_path / "library.zip",
+        {"Calcite_TEST1_ASDNGa_AREF": ["1.0000000e-001", "2.0000000e-001"]},
+    )
+
+    with pytest.raises(SpectrumLengthError):
+        read_spectrum(path, "Calcite_TEST1_ASDNGa_AREF")

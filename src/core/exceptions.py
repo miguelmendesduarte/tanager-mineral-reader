@@ -56,6 +56,33 @@ class ArchiveSizeError(SpectraError):
         super().__init__(f"The record at {url} carries no size for {name!r}.")
 
 
+class SpectrumNotFoundError(SpectraError):
+    """Raised when the archive holds no spectrum under that name."""
+
+    def __init__(self, name: str, archive: Path) -> None:
+        super().__init__(f"{archive} holds no spectrum named {name!r}.")
+
+
+class UnknownInstrumentError(SpectraError):
+    """Raised when a spectrum was recorded on an instrument we cannot place."""
+
+    def __init__(self, name: str, code: str, known: Iterable[str]) -> None:
+        options = ", ".join(sorted(known)) or "none"
+        super().__init__(
+            f"{name!r} was recorded on {code!r}, which has no wavelength grid "
+            f"here. Known instruments: {options}."
+        )
+
+
+class SpectrumLengthError(SpectraError):
+    """Raised when a spectrum and its wavelength grid disagree in length."""
+
+    def __init__(self, name: str, values: int, wavelengths: int) -> None:
+        super().__init__(
+            f"{name!r} holds {values} values against {wavelengths} wavelengths."
+        )
+
+
 class CubeError(TanagerError):
     """Base class for failures while reading a hyperspectral cube."""
 
