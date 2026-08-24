@@ -114,20 +114,52 @@ class Settings(BaseSettings):
         description=(
             "Reference spectra to match pixels against, under the group each "
             "is reported as. A species appears exactly once, so the groups are "
-            "the whole mineral list. These are the alteration minerals at "
-            "Cuprite; the kaolin minerals share a group because their spectra "
-            "are too alike to tell apart at 30 m."
+            "the whole mineral list. Group together any species the sensor "
+            "cannot separate at its resolution, and report the group rather "
+            "than guessing between them. The default set is the hydrothermal "
+            "alteration assemblage at Cuprite, Nevada."
         ),
     )
     match_range: tuple[float, float] = Field(
         default=(2080.0, 2490.0),
         description=(
-            "Wavelengths the minerals are told apart in, in nanometres. Wide "
-            "enough to hold the secondary absorptions near 2430 nm, which "
-            "separate alunite from the kaolin minerals far better than their "
-            "primary features alone, and stopping short of the last few bands "
-            "where the detector is noisiest."
+            "Wavelengths the minerals are told apart in, in nanometres. Choose "
+            "it by sweeping the bounds: inside a good range the answers do not "
+            "move, and a bound that cuts into an absorption both shifts its "
+            "position and understates its depth. Wide enough matters as much "
+            "as tight enough, since secondary absorptions often separate "
+            "minerals that share a primary one."
         ),
+    )
+
+    # Masking
+    vegetation_ndvi: float = Field(
+        default=0.2,
+        description=(
+            "Pixels greener than this are left out, since plants absorb in the "
+            "same shortwave region the minerals are told apart in. To choose "
+            "one for a new site, sweep it and compare what each date masks: "
+            "set too low it tracks sparse vegetation coming and going with the "
+            "season, which makes the mask depend on when the scene was taken "
+            "and manufactures disagreement between dates."
+        ),
+    )
+    dark_reflectance: float = Field(
+        default=0.05,
+        gt=0,
+        description=(
+            "Pixels darker than this in the shortwave are left out. Shadow and "
+            "water reflect too little for an absorption to stand above the "
+            "noise, whatever mineral lies underneath."
+        ),
+    )
+    red_nm: tuple[float, float] = Field(
+        default=(660.0, 680.0),
+        description="Wavelengths averaged as red when working out how green a pixel is.",
+    )
+    near_infrared_nm: tuple[float, float] = Field(
+        default=(850.0, 870.0),
+        description="Wavelengths averaged as near infrared for the same purpose.",
     )
 
     # Downloads
