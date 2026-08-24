@@ -45,6 +45,17 @@ class IncompleteDownloadError(DownloadError):
         super().__init__(url, f"Received {received} of {expected} bytes.")
 
 
+class SpectraError(TanagerError):
+    """Base class for failures while working with reference spectra."""
+
+
+class ArchiveSizeError(SpectraError):
+    """Raised when the catalog record does not give the size of an archive."""
+
+    def __init__(self, url: str, name: str) -> None:
+        super().__init__(f"The record at {url} carries no size for {name!r}.")
+
+
 class CubeError(TanagerError):
     """Base class for failures while reading a hyperspectral cube."""
 

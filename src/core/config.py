@@ -75,6 +75,20 @@ class Settings(BaseSettings):
         description="Assets downloaded when no explicit selection is given.",
     )
 
+    # Spectral library
+    sciencebase_base_url: str = Field(
+        default="https://www.sciencebase.gov/catalog",
+        description="Root of the USGS ScienceBase catalog.",
+    )
+    splib07_item_id: str = Field(
+        default="5807a2a2e4b0841e59e3a18d",
+        description="USGS Spectral Library Version 7, a single 5.5 GB archive.",
+    )
+    splib07_archive_name: str = Field(
+        default="usgs_splib07.zip",
+        description="Name of the archive within the catalog record.",
+    )
+
     # Downloads
     request_timeout: float = Field(
         default=60.0,
@@ -86,6 +100,25 @@ class Settings(BaseSettings):
         gt=0,
         description="Number of bytes held in memory while streaming a download.",
     )
+
+    @property
+    def splib07_dir(self) -> Path:
+        """Directory the spectral library is downloaded to and unpacked in."""
+        return self.data_dir / "splib07"
+
+    @property
+    def splib07_item_url(self) -> str:
+        """URL of the catalog record describing the spectral library."""
+        root = self.sciencebase_base_url.rstrip("/")
+        return f"{root}/item/{self.splib07_item_id}?format=json"
+
+    @property
+    def splib07_url(self) -> str:
+        """URL the spectral library archive is downloaded from."""
+        root = self.sciencebase_base_url.rstrip("/")
+        return (
+            f"{root}/file/get/{self.splib07_item_id}?name={self.splib07_archive_name}"
+        )
 
     def item_url(self, scene_id: str) -> str:
         """URL of the STAC item describing one scene.
