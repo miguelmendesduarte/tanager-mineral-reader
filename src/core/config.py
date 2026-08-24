@@ -120,12 +120,13 @@ class Settings(BaseSettings):
         ),
     )
     match_range: tuple[float, float] = Field(
-        default=(2080.0, 2400.0),
+        default=(2080.0, 2490.0),
         description=(
-            "Wavelengths the minerals are told apart in, in nanometres. This "
-            "is where their Al-OH, Mg-OH and carbonate absorptions fall, and "
-            "keeping it tight keeps the continuum local to the features being "
-            "compared."
+            "Wavelengths the minerals are told apart in, in nanometres. Wide "
+            "enough to hold the secondary absorptions near 2430 nm, which "
+            "separate alunite from the kaolin minerals far better than their "
+            "primary features alone, and stopping short of the last few bands "
+            "where the detector is noisiest."
         ),
     )
 
