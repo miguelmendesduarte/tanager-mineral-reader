@@ -4,6 +4,7 @@ The hyperspectral cubes are hundreds of megabytes each, so downloads stream to
 disk in chunks and resume from a partial file rather than starting over.
 """
 
+import time
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -16,7 +17,9 @@ from .models import Asset, Item
 PARTIAL_SUFFIX = ".part"
 BYTES_PER_KB = 1024
 BYTES_PER_MB = 1024 * BYTES_PER_KB
+BYTES_PER_GB = 1024 * BYTES_PER_MB
 _LOG_EVERY_BYTES = 100 * BYTES_PER_MB
+_SECONDS_PER_MINUTE = 60
 
 
 def download_assets(
@@ -108,11 +111,42 @@ def download_asset(
 
 def _human_readable(size_in_bytes: int) -> str:
     """Render a byte count in the largest unit that keeps it above one."""
+    if size_in_bytes >= BYTES_PER_GB:
+        return f"{size_in_bytes / BYTES_PER_GB:.1f} GB"
     if size_in_bytes >= BYTES_PER_MB:
         return f"{size_in_bytes / BYTES_PER_MB:.1f} MB"
     if size_in_bytes >= BYTES_PER_KB:
         return f"{size_in_bytes / BYTES_PER_KB:.1f} KB"
     return f"{size_in_bytes} B"
+
+
+def _remaining_time(seconds: float) -> str:
+    """Render a wait in minutes and seconds."""
+    minutes, whole_seconds = divmod(int(seconds), _SECONDS_PER_MINUTE)
+    return f"{minutes}m{whole_seconds:02d}s" if minutes else f"{whole_seconds}s"
+
+
+def _progress(downloaded: int, expected: int | None, rate: float) -> str:
+    """Describe how far a download has got, and how long is left.
+
+    Args:
+        downloaded: Bytes written so far, including any resumed from disk.
+        expected: Total size of the asset, when the server announces one.
+        rate: Bytes per second over this attempt.
+
+    Returns:
+        str: A line for the log. Without an announced size there is nothing to
+            count towards, so it reports only what has arrived.
+    """
+    written = _human_readable(downloaded)
+    speed = f"{rate / BYTES_PER_MB:.1f} MB/s"
+
+    if expected is None:
+        return f"{written} written, {speed}"
+
+    percent = 100 * downloaded / expected
+    left = _remaining_time((expected - downloaded) / rate) if rate else "unknown"
+    return f"{written} of {_human_readable(expected)} ({percent:.0f}%), {speed}, {left} left"
 
 
 def _stream_to_file(
@@ -171,12 +205,16 @@ def _fetch_into(
         expected = _announced_size(response, already_on_disk=downloaded)
 
         with destination.open("ab" if resuming else "wb") as handle:
+            started_at = time.monotonic()
+            started_from = downloaded
             next_milestone = downloaded + _LOG_EVERY_BYTES
             for chunk in response.iter_bytes(chunk_size):
                 handle.write(chunk)
                 downloaded += len(chunk)
                 if downloaded >= next_milestone:
-                    logger.debug("{:.0f} MB written", downloaded / BYTES_PER_MB)
+                    elapsed = time.monotonic() - started_at
+                    rate = (downloaded - started_from) / elapsed if elapsed else 0.0
+                    logger.info(_progress(downloaded, expected, rate))
                     next_milestone += _LOG_EVERY_BYTES
 
     if expected is not None and downloaded != expected:
