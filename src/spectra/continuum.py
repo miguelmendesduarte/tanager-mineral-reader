@@ -85,16 +85,24 @@ def _upper_hull(
 
     Walks left to right keeping the vertices that still turn downwards, which
     is Andrew's monotone chain over points already sorted by wavelength.
+
+    The walk runs over plain Python floats rather than the arrays themselves.
+    Reading a single element out of a numpy array builds a scalar object, which
+    costs several times the arithmetic done with it, and this loop reads far
+    more often than it computes.
     """
+    lengths = wavelengths.tolist()
+    heights = values.tolist()
+
     vertices: list[int] = [0]
-    for candidate in range(1, wavelengths.size):
+    for candidate in range(1, len(lengths)):
         while len(vertices) >= 2:
             last, previous = vertices[-1], vertices[-2]
-            rises = (values[last] - values[previous]) * (
-                wavelengths[candidate] - wavelengths[previous]
+            rises = (heights[last] - heights[previous]) * (
+                lengths[candidate] - lengths[previous]
             )
-            spans = (values[candidate] - values[previous]) * (
-                wavelengths[last] - wavelengths[previous]
+            spans = (heights[candidate] - heights[previous]) * (
+                lengths[last] - lengths[previous]
             )
             if rises > spans:
                 break
