@@ -16,6 +16,7 @@ from numpy.typing import NDArray
 
 from ..core.config import Settings
 from ..readers.cube import Cube
+from ..readers.grid import Grid
 from ..readers.masks import rock
 from .matching import Match, match
 from .rejection import NoiseFloor, Resolution, measure, measure_resolution
@@ -44,6 +45,8 @@ class Mapped:
             could account for.
         floor: The noise floor the decisions were made against.
         resolution: The ranking precision the decisions were made against.
+        grid: Where the scene sits on the map, so the result can be written
+            out with its projection and laid over anything else.
     """
 
     labels: NDArray[np.intp]
@@ -55,6 +58,7 @@ class Mapped:
     resolved: NDArray[np.bool_]
     floor: NoiseFloor
     resolution: Resolution
+    grid: Grid
 
     def pairs(self) -> dict[str, int]:
         """How many pixels each unsettled pair of minerals covers.
@@ -120,12 +124,12 @@ def map_scene(path: Path, settings: Settings) -> Mapped:
             shortwave=(low, high),
         )
         noise = cube.noise(selected, step=NOISE_SAMPLE)
+        grid = cube.grid
         spectra = read_spectra(settings.splib07_archive, settings.references)
         references = np.stack([
             convolve(spectrum, bands)[selected] for spectrum in spectra
         ])
 
-    rows, columns = usable.shape
     flat = np.asarray(block.reshape(window.size, -1).T, dtype=np.float64)
     where = np.flatnonzero(usable.reshape(-1))
     where = where[np.isfinite(flat[where]).all(axis=1)]
@@ -147,9 +151,7 @@ def map_scene(path: Path, settings: Settings) -> Mapped:
     )
 
     resolution = measure_resolution(references, window, noise=noise)
-    return _lay_out(
-        result, floor, resolution, spectra, settings, where, (rows, columns)
-    )
+    return _lay_out(result, floor, resolution, spectra, settings, where, grid)
 
 
 def group_indices(settings: Settings, names: list[str]) -> NDArray[np.intp]:
@@ -186,7 +188,7 @@ def _lay_out(
     spectra: list[Spectrum],
     settings: Settings,
     where: NDArray[np.intp],
-    shape: tuple[int, int],
+    grid: Grid,
 ) -> Mapped:
     """Put the matched pixels back where they came from in the scene."""
     groups = tuple(dict.fromkeys(settings.mineral_groups))
@@ -194,8 +196,14 @@ def _lay_out(
 
     accepted = floor.accepts(result.depth, result.best_angle)
     chosen = np.where(accepted, per_reference[result.best], UNCLASSIFIED)
-    settled = resolution.resolves(result.depth, result.margin)
 
+    # Two species of one group are one answer. Which of them edged ahead is a
+    # question this map never asks, so a close call between them settles the
+    # group all the same.
+    same_group = per_reference[result.best] == per_reference[result.runner_up]
+    settled = resolution.resolves(result.depth, result.margin) | same_group
+
+    shape = grid.shape
     pixels = shape[0] * shape[1]
     labels = np.full(pixels, UNCLASSIFIED, dtype=np.intp)
     second = np.full(pixels, UNCLASSIFIED, dtype=np.intp)
@@ -221,6 +229,7 @@ def _lay_out(
         resolved=resolved.reshape(shape),
         floor=floor,
         resolution=resolution,
+        grid=grid,
     )
     _report(mapped, result, accepted, per_reference)
     return mapped

@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from src.core.config import Settings
+from src.readers.grid import Grid
 from src.spectra.mapping import UNCLASSIFIED, Mapped, group_indices
 from src.spectra.rejection import NoiseFloor, Resolution
 
@@ -41,6 +42,15 @@ def _mapped(
         resolved=settled,
         floor=NoiseFloor(
             depth=0.06, angle=38.0, noise=0.002, brightness=0.2, quantile=0.99
+        ),
+        grid=Grid(
+            epsg=32611,
+            upper_left=(472020.0, 4172340.0),
+            lower_right=(
+                472020.0 + 30.0 * grid.shape[1],
+                4172340.0 - 30.0 * grid.shape[0],
+            ),
+            shape=grid.shape,
         ),
         resolution=Resolution(
             depths=np.array([0.05, 0.3]),
@@ -103,5 +113,16 @@ def test_an_unsettled_pixel_is_reported_as_the_pair_it_sits_between() -> None:
 
 def test_a_settled_pixel_is_not_reported_as_a_pair() -> None:
     mapped = _mapped([[0]], second=[[1]], resolved=[[True]])
+
+    assert mapped.pairs() == {}
+
+
+def test_a_tie_between_two_species_of_one_group_settles_that_group() -> None:
+    """Kaolinite against dickite is one answer, however close the call.
+
+    Both report as the kaolinite group, and the map never claims to tell the
+    species apart, so the margin between them decides nothing.
+    """
+    mapped = _mapped([[1]], second=[[1]], resolved=[[True]])
 
     assert mapped.pairs() == {}
