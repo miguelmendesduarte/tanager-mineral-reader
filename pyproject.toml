@@ -11,6 +11,7 @@ dependencies = [
     "numpy>=2.5.2",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.15.0",
+    "rasterio>=1.5.1",
     "typer>=0.27.1",
 ]
 
@@ -36,8 +37,8 @@ warn_unused_ignores = true
 show_error_codes = true
 
 [[tool.mypy.overrides]]
-# h5py ships no type annotations.
-module = ["h5py.*"]
+# Neither h5py nor rasterio ships type annotations.
+module = ["h5py.*", "rasterio.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
