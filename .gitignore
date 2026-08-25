@@ -222,5 +222,8 @@ __marimo__/
 # Downloaded imagery
 data/
 
+# Generated maps and figures
+outputs/
+
 # Working notes: survey, plan, decisions. Not part of the submission.
 docs/

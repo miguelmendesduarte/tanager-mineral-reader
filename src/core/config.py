@@ -73,6 +73,10 @@ class Settings(BaseSettings):
         default=Path("data"),
         description="Directory downloaded assets are written to.",
     )
+    output_dir: Path = Field(
+        default=Path("outputs"),
+        description="Directory results are written to.",
+    )
     default_assets: tuple[str, ...] = Field(
         default=(
             "ortho_radiance_hdf5",
@@ -267,6 +271,10 @@ class Settings(BaseSettings):
     def splib07_archive(self) -> Path:
         """Local path of the spectral library archive."""
         return self.splib07_dir / self.splib07_archive_name
+
+    def map_path(self, scene_id: str) -> Path:
+        """Where a scene's mineral map is written."""
+        return self.output_dir / f"{scene_id}_minerals.tif"
 
     def scene_asset(self, scene_id: str, asset: str) -> Path:
         """Local path of an asset already downloaded for a scene.
