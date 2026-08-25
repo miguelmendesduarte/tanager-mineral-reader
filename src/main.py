@@ -15,6 +15,7 @@ from .spectra import (
     deepest_feature,
     extra_blur,
     fetch_archive,
+    map_scene,
     read_spectra,
 )
 
@@ -44,6 +45,7 @@ REFERENCE_SCENE_HELP = (
     "Scene whose bands the reference spectra are averaged onto. Defaults to "
     "the first scene configured in the settings."
 )
+MAP_SCENE_HELP = "Scene to map. Defaults to the first scene configured in the settings."
 SR_ASSET = "ortho_sr_hdf5"
 
 
@@ -134,7 +136,7 @@ def references(
 
     logger.info(
         "Averaging {} reference spectra onto the {} bands of {}",
-        len(settings.species),
+        len(settings.references),
         len(bands),
         scene,
     )
@@ -147,18 +149,39 @@ def references(
         "extra blur",
     )
 
-    for spectrum in read_spectra(settings.splib07_archive, settings.species):
+    for spectrum in read_spectra(settings.splib07_archive, settings.references):
         values = convolve(spectrum, bands)
         position, depth = deepest_feature(bands.centres, values, low, high)
         blur = extra_blur(spectrum, bands, low, high)
         logger.info(
             "{:<16} {:<38} {:>6.1f} nm {:>7.3f} {:>+7.2f} nm",
-            settings.group_of(spectrum.name),
+            settings.group_of(spectrum.name) or "not a mineral",
             spectrum.name,
             position,
             depth,
             blur,
         )
+
+
+@app.command()
+def minerals(
+    scene_id: Annotated[str | None, typer.Option(help=MAP_SCENE_HELP)] = None,
+) -> None:
+    """Work out which mineral, if any, each pixel of a scene shows."""
+    settings = get_settings()
+    configure_logging(settings)
+
+    scene = scene_id or settings.scene_ids[0]
+    mapped = map_scene(settings.scene_asset(scene, SR_ASSET), settings)
+
+    named = int(mapped.named.sum())
+    logger.info(
+        "{} of {} pixels of {} carry a mineral ({:.1f}%)",
+        named,
+        mapped.labels.size,
+        scene,
+        100 * named / mapped.labels.size,
+    )
 
 
 if __name__ == "__main__":

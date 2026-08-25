@@ -144,6 +144,17 @@ class SpectrumLengthError(SpectraError):
         )
 
 
+class TooFewReferencesError(SpectraError):
+    """Raised when there are not enough references to match against."""
+
+    def __init__(self, given: int) -> None:
+        super().__init__(
+            f"Matching needs at least two references, and {given} were given. "
+            "With one there is no runner-up, and so no way to tell a clear "
+            "match from a coin toss."
+        )
+
+
 class CubeError(TanagerError):
     """Base class for failures while reading a hyperspectral cube."""
 

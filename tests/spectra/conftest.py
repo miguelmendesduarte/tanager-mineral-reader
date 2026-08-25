@@ -5,7 +5,10 @@ from pathlib import Path
 
 import pytest
 
-from src.spectra.splib07 import BANDPASS_FILES, MINERALS, WAVELENGTH_FILES
+from src.spectra.splib07 import BANDPASS_FILES, ROOT, WAVELENGTH_FILES
+
+MINERALS = f"{ROOT}/ChapterM_Minerals"
+VEGETATION = f"{ROOT}/ChapterV_Vegetation"
 
 DELETED = "-1.2300000e+034"
 

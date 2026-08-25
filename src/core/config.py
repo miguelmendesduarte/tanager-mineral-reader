@@ -120,6 +120,21 @@ class Settings(BaseSettings):
             "alteration assemblage at Cuprite, Nevada."
         ),
     )
+    nonmineral_spectra: tuple[str, ...] = Field(
+        default=(
+            "Grass_AETR70_CA01-AETR-2_NPV_ASDFRa_AREF",
+            "Grass_AETR95_CA01-AETR-1_NPV_ASDFRa_AREF",
+            "Grass_CA01-TACA-1_meadow_NPV_ASDFRa_AREF",
+        ),
+        description=(
+            "Spectra matched against but never reported as a mineral. Ground "
+            "that is not rock still has to be recognised, because a pixel is "
+            "always given the nearest reference and will take a mineral's name "
+            "if nothing truer is offered. The defaults are dead vegetation, "
+            "whose cellulose absorbs where carbonate does and which a "
+            "greenness mask cannot see."
+        ),
+    )
     match_range: tuple[float, float] = Field(
         default=(2080.0, 2490.0),
         description=(
@@ -210,24 +225,37 @@ class Settings(BaseSettings):
 
     @property
     def species(self) -> tuple[str, ...]:
-        """Every reference spectrum to match against, in group order."""
+        """Every mineral spectrum to match against, in group order."""
         return tuple(name for names in self.mineral_groups.values() for name in names)
 
-    def group_of(self, name: str) -> str:
+    @property
+    def references(self) -> tuple[str, ...]:
+        """Every spectrum to match against, minerals first.
+
+        The ones that are not minerals are matched exactly like the rest. They
+        earn their place by taking the pixels that would otherwise be handed a
+        mineral's name for want of anything closer.
+        """
+        return self.species + self.nonmineral_spectra
+
+    def group_of(self, name: str) -> str | None:
         """The group a reference spectrum is reported as.
 
         Args:
             name: Name of the reference spectrum.
 
         Returns:
-            str: Name of its group.
+            str | None: Name of its group, or None when the spectrum is not a
+                mineral and so names nothing.
 
         Raises:
-            KeyError: If no group holds that spectrum.
+            KeyError: If the spectrum is not configured at all.
         """
         for group, names in self.mineral_groups.items():
             if name in names:
                 return group
+        if name in self.nonmineral_spectra:
+            return None
         raise KeyError(name)
 
     @property

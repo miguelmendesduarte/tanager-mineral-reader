@@ -27,6 +27,7 @@ FIELDS_PATH = f"{GRID_PATH}/Data Fields"
 STRUCT_METADATA_PATH = "HDFEOS INFORMATION/StructMetadata.0"
 
 CUBE_NAMES = ("toa_radiance", "surface_reflectance")
+UNCERTAINTY = "surface_reflectance_uncertainty"
 EXCLUDING_MASKS = ("nodata_pixels", "beta_cloud_mask", "beta_cirrus_mask")
 
 
@@ -211,6 +212,32 @@ class Cube:
         if fill is None:
             return values
         return np.where(values == np.float32(fill), np.float32(np.nan), values)
+
+    def noise(self, indices: NDArray[np.intp], *, step: int = 1) -> float:
+        """Typical reflectance uncertainty over a selection of bands.
+
+        The product carries its own estimate of how far each measurement could
+        be out, which is what makes it possible to ask whether an absorption is
+        real without picking a threshold. The layer is as large as the cube, so
+        it is sampled rather than read whole.
+
+        Args:
+            indices: Bands to measure over.
+            step: Read every `step`th row and column.
+
+        Returns:
+            float: Median uncertainty, in reflectance.
+
+        Raises:
+            LayerNotFoundError: If the product carries no uncertainty layer.
+        """
+        fields = self._file[FIELDS_PATH]
+        if UNCERTAINTY not in fields:
+            raise LayerNotFoundError(UNCERTAINTY, self.layers)
+
+        wanted = np.unique(np.asarray(indices, dtype=np.intp))
+        values = fields[UNCERTAINTY][wanted[0] : wanted[-1] + 1, ::step, ::step]
+        return float(np.nanmedian(self._without_fill(values)))
 
     def valid_mask(self) -> NDArray[np.bool_]:
         """Pixels that hold a usable measurement.
