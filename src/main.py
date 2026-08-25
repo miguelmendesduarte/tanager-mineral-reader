@@ -18,6 +18,7 @@ from .spectra import (
     map_scene,
     read_spectra,
 )
+from .writers import write_map
 
 app = typer.Typer(
     help="Map surface mineralogy from Tanager hyperspectral imagery.",
@@ -173,6 +174,7 @@ def minerals(
 
     scene = scene_id or settings.scene_ids[0]
     mapped = map_scene(settings.scene_asset(scene, SR_ASSET), settings)
+    write_map(mapped, mapped.grid, settings.map_path(scene))
 
     named = int(mapped.named.sum())
     logger.info(
