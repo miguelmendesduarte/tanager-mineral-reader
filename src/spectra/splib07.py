@@ -7,6 +7,12 @@ out of the zip, which holds 178,818 members and needs none of them unpacked.
 Each spectrum is an ASCII file: one header line, then one value per line. The
 values carry no wavelengths of their own — those live in a separate file per
 instrument, in the same order — and a deleted point is written as -1.23e34.
+
+Spectra are filed under chapters: minerals, vegetation, soils, coatings and
+more. All of them are reachable here. Minerals are what gets mapped, but a
+pixel of dry grass has to be recognised as dry grass rather than handed the
+name of whichever mineral it least resembles, and that means holding its
+spectrum too.
 """
 
 import re
@@ -30,7 +36,6 @@ from ..core.exceptions import (
 )
 
 ROOT = "ASCIIdata/ASCIIdata_splib07b"
-MINERALS = f"{ROOT}/ChapterM_Minerals"
 DELETED = -1.0
 MICRONS_TO_NM = 1000.0
 
@@ -119,11 +124,12 @@ def read_spectra(archive: Path, names: Iterable[str]) -> list[Spectrum]:
     spectra = []
 
     with zipfile.ZipFile(archive) as library:
+        members = _members(library)
         for name in names:
-            try:
-                reflectance = _column(library, f"{MINERALS}/splib07b_{name}.txt")
-            except KeyError:
-                raise SpectrumNotFoundError(name, archive) from None
+            member = members.get(name)
+            if member is None:
+                raise SpectrumNotFoundError(name, archive)
+            reflectance = _column(library, member)
 
             instrument = _instrument(name)
             if instrument not in grids:
@@ -144,6 +150,24 @@ def read_spectra(archive: Path, names: Iterable[str]) -> list[Spectrum]:
             )
 
     return spectra
+
+
+def _members(library: zipfile.ZipFile) -> dict[str, str]:
+    """Where every spectrum lives in the archive, by name.
+
+    Built once per archive rather than guessed at, because a spectrum's chapter
+    is not derivable from its name, and the file prefix is not fixed either:
+    some chapters of the oversampled release carry names from the measured one.
+    """
+    found = {}
+    for member in library.namelist():
+        if not member.startswith(f"{ROOT}/") or not member.endswith(".txt"):
+            continue
+        stem = member.rsplit("/", 1)[-1][: -len(".txt")]
+        _, _, name = stem.partition("_")
+        if name:
+            found[name] = member
+    return found
 
 
 def _grid(
