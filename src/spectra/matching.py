@@ -84,10 +84,10 @@ def match(
     if references.shape[0] < MINIMUM_REFERENCES:
         raise TooFewReferencesError(references.shape[0])
 
-    pixel_shape = _absorption(spectra, wavelengths)
-    reference_shape = _absorption(references, wavelengths)
+    pixel_shape = absorption(spectra, wavelengths)
+    reference_shape = absorption(references, wavelengths)
 
-    angles = _angles(pixel_shape, reference_shape)
+    angles = angles_between(pixel_shape, reference_shape)
     ranked = np.argsort(angles, axis=1)
     best, runner_up = ranked[:, 0], ranked[:, 1]
     rows = np.arange(angles.shape[0])
@@ -103,7 +103,7 @@ def match(
     )
 
 
-def _absorption(
+def absorption(
     spectra: NDArray[np.float64],
     wavelengths: NDArray[np.float64],
 ) -> NDArray[np.float64]:
@@ -116,7 +116,7 @@ def _absorption(
     return np.where(np.isfinite(removed), 1.0 - removed, 0.0)
 
 
-def _angles(
+def angles_between(
     pixels: NDArray[np.float64],
     references: NDArray[np.float64],
 ) -> NDArray[np.float64]:
