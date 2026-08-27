@@ -111,7 +111,6 @@ class Settings(BaseSettings):
                 "Halloysite_NMNH106237_ASDNGa_AREF",
             ),
             "muscovite": ("Muscovite_GDS113_Ruby_ASDNGa_AREF",),
-            "montmorillonite": ("Montmorillonite_SWy-1_ASDNGb_AREF",),
             "pyrophyllite": ("Pyrophyllite_PYS1A_lt850um_ASDNGa_AREF",),
             "carbonate": ("Calcite_WS272_ASDNGa_AREF",),
         },
