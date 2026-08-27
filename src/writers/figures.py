@@ -176,42 +176,6 @@ def agreement_matrix(result: Agreement, path: Path, scenes: tuple[str, str]) -> 
     return _save(figure, path)
 
 
-def confidence(split: dict[str, tuple[float, int]], path: Path) -> Path:
-    """Draw whether the pixels the maps called settled actually agreed more.
-
-    Args:
-        split: Agreement rate and pixel count, by confidence.
-        path: File to write.
-
-    Returns:
-        Path: The file written.
-    """
-    labels = list(split)
-    rates = [100 * split[label][0] for label in labels]
-    counts = [split[label][1] for label in labels]
-
-    figure, axes = plt.subplots(figsize=(6.4, 3.2))
-    bars = axes.barh(labels, rates, height=0.5, color=[COLOURS["muscovite"], OTHER])
-    axes.set_xlim(0, 100)
-    axes.set_xlabel("pixels the two dates agreed on (%)", color=MUTED, fontsize=9)
-    axes.set_title(
-        "Does the confidence mean anything?", color=INK, fontsize=11, loc="left", pad=10
-    )
-    axes.spines[["top", "right", "left"]].set_visible(False)
-    axes.tick_params(length=0, labelsize=9.5)
-
-    for bar, rate, count in zip(bars, rates, counts, strict=True):
-        axes.text(
-            rate + 1.5,
-            bar.get_y() + bar.get_height() / 2,
-            f"{rate:.1f}%   {count:,} px",
-            va="center",
-            fontsize=9,
-            color=INK,
-        )
-    return _save(figure, path)
-
-
 def spectrum_against_reference(
     wavelengths: NDArray[np.float64],
     pixel: NDArray[np.float64],

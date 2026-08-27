@@ -27,7 +27,6 @@ from .spectra import (
 )
 from .writers import (
     agreement_matrix,
-    confidence,
     mineral_map,
     spectrum_against_reference,
     write_map,
@@ -280,9 +279,6 @@ def figures() -> None:
             result,
             settings.output_dir / "agreement.png",
             (settings.scene_ids[0], settings.scene_ids[1]),
-        )
-        confidence(
-            by_confidence(maps[0], maps[1]), settings.output_dir / "confidence.png"
         )
 
     logger.info("Figures are in {}", settings.output_dir)
