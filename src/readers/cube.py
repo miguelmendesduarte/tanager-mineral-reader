@@ -93,6 +93,23 @@ class Cube:
             usable=usable,
         )
 
+    @property
+    def strip_id(self) -> str | None:
+        """Identifier of the pass the scene was cut from.
+
+        Tanager records a long strip and delivers it in pieces, so two scenes
+        can share everything except the fact that they are one observation.
+        Comparing two pieces of one strip measures nothing, and only this
+        attribute tells them apart — the catalog does not carry it.
+
+        Returns:
+            str | None: The identifier, or None if the product omits it.
+        """
+        value = self._file[GRID_PATH].attrs.get("strip_id")
+        if value is None:
+            return None
+        return str(value.decode() if isinstance(value, bytes) else value)
+
     @cached_property
     def grid(self) -> Grid:
         """Where the scene sits on the map."""

@@ -5,8 +5,10 @@ from typing import Annotated
 import typer
 from loguru import logger
 
+from .agreement import Agreement, by_confidence, compare
 from .catalog import build_client, download_assets, fetch_item
 from .core.config import get_settings
+from .core.exceptions import AgreementError
 from .core.logging import configure_logging
 from .readers import Cube
 from .spectra import (
@@ -47,7 +49,12 @@ REFERENCE_SCENE_HELP = (
     "the first scene configured in the settings."
 )
 MAP_SCENE_HELP = "Scene to map. Defaults to the first scene configured in the settings."
+AGREE_SCENE_HELP = (
+    "Scene to compare; repeat the option. Defaults to every scene configured "
+    "in the settings."
+)
 SR_ASSET = "ortho_sr_hdf5"
+PAIR = 2
 
 
 @app.command()
@@ -184,6 +191,58 @@ def minerals(
         scene,
         100 * named / mapped.labels.size,
     )
+
+
+@app.command()
+def agreement(
+    scene_ids: Annotated[
+        list[str] | None,
+        typer.Option("--scene-id", "-s", help=AGREE_SCENE_HELP),
+    ] = None,
+) -> None:
+    """Measure how far two maps of the same ground agree.
+
+    Skipped when the scenes given are one observation delivered in pieces, or
+    do not overlap, since neither case has anything to compare.
+    """
+    settings = get_settings()
+    configure_logging(settings)
+
+    scenes = tuple(scene_ids or settings.scene_ids)
+    if len(scenes) < PAIR:
+        logger.info("Skipped: {} scene given, and agreement needs two", len(scenes))
+        return
+
+    maps, strips = [], []
+    for scene in scenes[:PAIR]:
+        path = settings.scene_asset(scene, SR_ASSET)
+        with Cube(path) as cube:
+            strips.append(cube.strip_id)
+        maps.append(map_scene(path, settings))
+
+    try:
+        result = compare(maps[0], maps[1], strips=(strips[0], strips[1]))
+    except AgreementError as reason:
+        logger.info("Skipped: {}", reason)
+        return
+
+    logger.info("Cohen's kappa {:.2f} over {} pixels", result.kappa, result.compared)
+    _print_matrix(result, scenes[:PAIR])
+    for group, share in sorted(result.per_group().items(), key=lambda item: -item[1]):
+        logger.info("   {:18s} {:5.1f}%", group, 100 * share)
+    for label, (rate, count) in by_confidence(maps[0], maps[1]).items():
+        logger.info("   {:18s} {:5.1f}%  over {} pixels", label, 100 * rate, count)
+
+
+def _print_matrix(result: Agreement, scenes: tuple[str, ...]) -> None:
+    """Show the matrix itself, not only what was derived from it."""
+    width = 13
+    names = [name[: width - 2] for name in result.columns()]
+    logger.info("{} down, {} across", scenes[0], scenes[1])
+    logger.info(" " * 18 + "".join(f"{name:>{width}}" for name in [*names, "total"]))
+    for group, counts, total in result.rows():
+        cells = "".join(f"{count:>{width},}" for count in [*counts, total])
+        logger.info("{:<18}{}", group[: width + 3], cells)
 
 
 if __name__ == "__main__":
