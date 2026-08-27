@@ -1,7 +1,7 @@
 [project]
-name = "tanager-open-data-competition"
+name = "tanager-mineral-reader"
 version = "0.1.0"
-description = "Add your description here"
+description = "Mineral mapping from Tanager-1 hyperspectral imagery and the USGS spectral library"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

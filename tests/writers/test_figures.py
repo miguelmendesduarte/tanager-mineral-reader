@@ -17,7 +17,6 @@ from src.spectra.rejection import NoiseFloor, Resolution
 from src.writers.figures import (
     COLOURS,
     agreement_matrix,
-    confidence,
     mineral_map,
     spectrum_against_reference,
 )
@@ -89,15 +88,6 @@ def test_the_agreement_matrix_is_drawn(tmp_path: Path) -> None:
 
     assert path.exists()
     assert path.stat().st_size > 0
-
-
-def test_the_confidence_split_is_drawn(tmp_path: Path) -> None:
-    path = confidence(
-        {"both settled": (0.98, 50578), "either unsettled": (0.722, 66750)},
-        tmp_path / "confidence.png",
-    )
-
-    assert path.exists()
 
 
 def test_a_pixel_is_drawn_against_its_reference(tmp_path: Path) -> None:

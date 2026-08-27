@@ -1404,7 +1404,7 @@ wheels = [
 ]
 
 [[package]]
-name = "tanager-open-data-competition"
+name = "tanager-mineral-reader"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

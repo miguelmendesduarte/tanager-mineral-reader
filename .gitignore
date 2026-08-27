@@ -228,5 +228,8 @@ data/
 outputs/*
 !outputs/*.png
 
-# Working notes: survey, plan, decisions. Not part of the submission.
-docs/
+# Working notes, kept out of the submission. The report and the scene-finding
+# helper in the same directory are part of it.
+docs/00_catalog_survey.md
+docs/01_plan.md
+docs/decisions.md
