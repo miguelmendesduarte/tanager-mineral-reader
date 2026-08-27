@@ -155,6 +155,29 @@ class TooFewReferencesError(SpectraError):
         )
 
 
+class AgreementError(TanagerError):
+    """Base class for failures while comparing two maps."""
+
+
+class NotIndependentError(AgreementError):
+    """Raised when two maps come from a single pass of the sensor."""
+
+    def __init__(self, strip: str) -> None:
+        super().__init__(
+            f"Both maps come from {strip!r}, which is one observation "
+            "delivered in pieces. Comparing them would measure nothing."
+        )
+
+
+class NoOverlapError(AgreementError):
+    """Raised when two maps cover no ground in common."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "The two maps share no ground, so there is nothing to compare."
+        )
+
+
 class CubeError(TanagerError):
     """Base class for failures while reading a hyperspectral cube."""
 
