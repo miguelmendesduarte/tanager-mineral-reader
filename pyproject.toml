@@ -8,6 +8,7 @@ dependencies = [
     "h5py>=3.16.0",
     "httpx>=0.28.1",
     "loguru>=0.7.3",
+    "matplotlib>=3.11.1",
     "numpy>=2.5.2",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.15.0",
@@ -38,7 +39,7 @@ show_error_codes = true
 
 [[tool.mypy.overrides]]
 # Neither h5py nor rasterio ships type annotations.
-module = ["h5py.*", "rasterio.*"]
+module = ["h5py.*", "rasterio.*", "matplotlib.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

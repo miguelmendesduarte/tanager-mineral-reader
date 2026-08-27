@@ -2,16 +2,18 @@
 
 from typing import Annotated
 
+import numpy as np
 import typer
 from loguru import logger
 
 from .agreement import Agreement, by_confidence, compare
 from .catalog import build_client, download_assets, fetch_item
-from .core.config import get_settings
+from .core.config import Settings, get_settings
 from .core.exceptions import AgreementError
 from .core.logging import configure_logging
 from .readers import Cube
 from .spectra import (
+    Mapped,
     archive_size,
     convolve,
     deepest_feature,
@@ -20,7 +22,16 @@ from .spectra import (
     map_scene,
     read_spectra,
 )
-from .writers import write_map
+from .spectra import (
+    convolve as convolve_spectrum,
+)
+from .writers import (
+    agreement_matrix,
+    confidence,
+    mineral_map,
+    spectrum_against_reference,
+    write_map,
+)
 
 app = typer.Typer(
     help="Map surface mineralogy from Tanager hyperspectral imagery.",
@@ -55,6 +66,7 @@ AGREE_SCENE_HELP = (
 )
 SR_ASSET = "ortho_sr_hdf5"
 PAIR = 2
+MINIMUM_EXAMPLE = 100
 
 
 @app.command()
@@ -243,6 +255,81 @@ def _print_matrix(result: Agreement, scenes: tuple[str, ...]) -> None:
     for group, counts, total in result.rows():
         cells = "".join(f"{count:>{width},}" for count in [*counts, total])
         logger.info("{:<18}{}", group[: width + 3], cells)
+
+
+@app.command()
+def figures() -> None:
+    """Draw the results: the maps, the agreement, and a worked example."""
+    settings = get_settings()
+    configure_logging(settings)
+
+    maps, strips = [], []
+    for scene in settings.scene_ids:
+        path = settings.scene_asset(scene, SR_ASSET)
+        with Cube(path) as cube:
+            strips.append(cube.strip_id)
+        mapped = map_scene(path, settings)
+        maps.append(mapped)
+        mineral_map(mapped, settings.output_dir / f"map_{scene}.png", scene)
+
+    _draw_examples(settings, maps[0], settings.scene_ids[0])
+
+    if len(maps) >= PAIR:
+        result = compare(maps[0], maps[1], strips=(strips[0], strips[1]))
+        agreement_matrix(
+            result,
+            settings.output_dir / "agreement.png",
+            (settings.scene_ids[0], settings.scene_ids[1]),
+        )
+        confidence(
+            by_confidence(maps[0], maps[1]), settings.output_dir / "confidence.png"
+        )
+
+    logger.info("Figures are in {}", settings.output_dir)
+
+
+def _draw_examples(settings: Settings, mapped: Mapped, scene: str) -> None:
+    """Draw a typical settled pixel of each mineral against its reference.
+
+    Typical means the single pixel whose absorption depth sits closest to the
+    median of its group — one real spectrum, not an average of many. The
+    deepest pixel in a scene is an outlier and flatters the method; the middle
+    one is what the map is mostly made of.
+    """
+    low, high = settings.match_range
+
+    with Cube(settings.scene_asset(scene, SR_ASSET)) as cube:
+        bands = cube.wavelengths
+        selected = cube.bands_between(low, high)
+        wavelengths = bands.centres[selected]
+
+        for index, group in enumerate(mapped.groups):
+            chosen = mapped.named & mapped.resolved & (mapped.labels == index)
+            if chosen.sum() < MINIMUM_EXAMPLE:
+                continue
+            depths = np.where(chosen, mapped.depth, np.nan)
+            middle = float(np.nanmedian(depths[chosen]))
+            row, column = np.unravel_index(
+                int(np.nanargmin(np.abs(depths - middle))), depths.shape
+            )
+
+            name = next(n for n in settings.species if settings.group_of(n) == group)
+            spectrum = read_spectra(settings.splib07_archive, [name])[0]
+            spectrum_against_reference(
+                wavelengths,
+                np.asarray(
+                    cube.read_spectrum(int(row), int(column))[selected], np.float64
+                ),
+                convolve_spectrum(spectrum, bands)[selected],
+                settings.output_dir / f"spectrum_{group}.png",
+                f"A typical {group.replace('_', ' ')} pixel, and {name.split('_')[0]}",
+                reference_label=name.split("_")[0].lower(),
+                caption=(
+                    f"Median-depth pixel of {int(chosen.sum()):,} settled "
+                    f"{group.replace('_', ' ')} pixels in {scene}. "
+                    f"Reference {name}."
+                ),
+            )
 
 
 if __name__ == "__main__":

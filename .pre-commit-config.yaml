@@ -44,6 +44,7 @@ repos:
           - pydantic-settings
           - httpx
           - numpy
+          - matplotlib
 
   - repo: https://github.com/crate-ci/typos
     rev: v1.49.0
